@@ -117,7 +117,7 @@ def plot_time_frequency(tfr_data, channel='O2', title="Time-Frequency Analysis")
 
 def main():
     edf_files = setup_environment()
-    filefolder = '/content/drive/MyDrive/Char'
+    filefolder = 'your_filepath'
     
     # Initialize data structures
     power_data = {label: {band: [] for band in FREQ_BANDS} 

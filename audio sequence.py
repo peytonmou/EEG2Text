@@ -24,16 +24,17 @@ BREAK_AUDIO = str(AUDIO_ROOT / 'break.WAV')
 END_AUDIO = str(AUDIO_ROOT / 'end.WAV')
 
 # Define specific durations for special audio files
-DURATION_BEGIN_WAV = 19000  # 19 seconds
+DURATION_BEGIN_WAV = 20000  # 20 seconds
 DURATION_END_WAV = 3000    # 3 seconds
-DURATION_BREAK_WAV = 12500  # 12.5 seconds
+DURATION_BREAK_WAV = 13000  # 13 seconds
 
-# Define default audio playback settings
-DEFAULT_LDB = 75
-DEFAULT_RDB = 75
-DEFAULT_WINDOW = 0 # Not used for audio, keep at 0
+# Define audio playback settings
+AUDIO_DB_LEVEL = 600  # Both left and right channels
+AUDIO_PLAY_DURATION = 500  # 500ms for audio playback
+IMAGINATION_DELAY = 2000  # 2000ms imagination period
+DEFAULT_WINDOW = 0  # Response window (not used)
 MODE_SND = 'SND'
-
+MODE_DELAY = 'DELAY'
 
 def create_trial_sequence():
     """
@@ -80,15 +81,23 @@ def create_trial_sequence():
     # Create word trials
     for i, word in enumerate(final_trial_words, 1):
         trials.append({
-            'type': 'word',
-            'duration': 1000,
-            'audio_play_time': 1000,
-            'imagination_time': 2000,
+            'type': 'word_audio',
+            'duration': AUDIO_PLAY_DURATION,
             'stimulus': str(AUDIO_ROOT / CLASS_AUDIO_MAP[word]['audio']),
             'class': word,
             'type_code': CLASS_AUDIO_MAP[word]['type_code'],
             'trial_num': i,
-            'description': f"Hear '{word}', then imagine speaking it"
+            'description': f"Play '{word}' audio"
+        })
+        
+        trials.append({
+            'type': 'word_delay',
+            'duration': IMAGINATION_DELAY,
+            'stimulus': '',
+            'class': word,
+            'type_code': CLASS_AUDIO_MAP[word]['type_code'],
+            'trial_num': i,
+            'description': f"Imagination period for '{word}'"
         })
 
         # Add long break every 40 trials
@@ -132,43 +141,57 @@ def write_seq_file(trials: list, out_path: str, refresh_rate: float):
         f.write("----- ------- ------- ------- ------- -------- -------- ---- ---- --------\n")
 
         for i, trial in enumerate(trials):
+            # Common fields
+            label = 0
+            resp = 0
             tcode = trial['type_code']
-            dur_ms = trial['duration'] # This is now the actual duration to be used in 'dur' column
-
-            # ITI calculation:
-            if trial['type'] == 'word':
-                # ITI is the total time for the trial including the sound duration and imagination time
-                iti_ms = dur_ms + trial['imagination_time']
-            elif trial['type'] in ['instruction', 'end', 'long_break']:
-                # For instructions, end, and breaks, ITI is simply their specified duration
-                iti_ms = dur_ms
-            else:
-                iti_ms = 0 # Default if type is not recognized (should not happen with defined types)
-
-            # Round to frame
+            dur_ms = trial['duration']
             dur_fixed = round_to_frame_ms(dur_ms, refresh_rate)
-            iti_fixed = round_to_frame_ms(iti_ms, refresh_rate)
-
-            # Ensure minimal duration if 0.00 is problematic for Stim2 for actual sound playback
-            # The manual states 0.00 is "play for full length", but if we define a fixed duration, use it.
-            # Here, we use the specified duration, ensuring it's not zero for playability.
-            # This 'final_dur' variable is correctly derived from 'dur_fixed' in most cases.
-            # The old logic for 'if dur_ms == 0 and trial['type'] == 'word': final_dur = ...' is removed
-            # because 'duration' for 'word' trials is now always 1000.
-            final_dur = f"{dur_fixed:.2f}"
-
-            w.writerow([
-                0,                          # label
-                MODE_SND,                   # mode
-                final_dur,                  # dur
-                DEFAULT_WINDOW,             # win (always 0 for audio)
-                f"{iti_fixed:.2f}",         # iti
-                DEFAULT_RDB,                # rdB (right channel dB)
-                DEFAULT_LDB,                # ldB (left channel dB)
-                0,                          # resp (set to 0, or specific if needed)
-                tcode,                      # type
-                trial['stimulus']           # filename
-            ])
+            
+            if trial['type'] == 'word_audio':
+                # Audio playback trial (SND mode)
+                w.writerow([
+                    label,
+                    MODE_SND,
+                    f"{dur_fixed:.2f}",  # dur (500ms)
+                    DEFAULT_WINDOW,      # win
+                    f"{dur_fixed:.2f}",  # iti (same as dur)
+                    AUDIO_DB_LEVEL,      # rdB
+                    AUDIO_DB_LEVEL,      # ldB
+                    resp,
+                    tcode,
+                    trial['stimulus']
+                ])
+            elif trial['type'] == 'word_delay':
+                # Imagination delay trial (DELAY mode)
+                # Only duration field is used, others can be empty/0
+                w.writerow([
+                    label,
+                    MODE_DELAY,
+                    f"{dur_fixed:.2f}",  # dur (2000ms)
+                    '',                  # win (not used)
+                    '',                  # iti (not used)
+                    '',                  # rdB (not used)
+                    '',                  # ldB (not used)
+                    '',                  # resp (not used)
+                    '',                  # type (not used)
+                    ''                   # filename (not used)
+                ])
+            else:
+                # Instruction/break/end trials (SND mode)
+                iti_fixed = round_to_frame_ms(dur_ms, refresh_rate)
+                w.writerow([
+                    label,
+                    MODE_SND,
+                    f"{dur_fixed:.2f}",  # dur
+                    DEFAULT_WINDOW,      # win
+                    f"{iti_fixed:.2f}",  # iti
+                    AUDIO_DB_LEVEL,     # rdB
+                    AUDIO_DB_LEVEL,     # ldB
+                    resp,
+                    tcode,
+                    trial['stimulus']
+                ])
 
 
 def write_order_log(trials: list, out_path: str):

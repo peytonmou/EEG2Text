@@ -633,15 +633,7 @@ def main():
     }
 
     run_multiple_seeds(args, X, Y, metadata, class_names, num_seeds=5)
-    
-  
-    # # Print model summary
-    # print(model)
-    # total_params = sum(p.numel() for p in model.parameters())
-    # print(f"Total parameters: {total_params:,}")
-    
-    # # Train the model
-    # train(args, model, train_loader, val_loader, test_loader)
 
 if __name__ == "__main__":
+
     main() 
